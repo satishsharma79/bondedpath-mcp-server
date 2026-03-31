@@ -213,11 +213,18 @@ async function startHttp(port: number) {
     app.use(express.json());
 
     app.post('/mcp', async (req, res) => {
-        const server = createSandboxServer();
-        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-        res.on('close', () => { transport.close(); });
-        await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
+        try {
+            const server = createSandboxServer();
+            const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+            res.on('close', () => { transport.close(); });
+            await server.connect(transport);
+            await transport.handleRequest(req, res, req.body);
+        } catch (err) {
+            console.error('MCP handler error:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'internal_error', message: String(err) });
+            }
+        }
     });
 
     app.get('/health', (_req, res) => { res.json({ status: 'ok' }); });
