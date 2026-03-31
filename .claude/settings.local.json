@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where npm:*)",
+      "Bash(where node:*)",
+      "Bash(npm install:*)",
+      "Read(//c/Users/satis/AppData/Roaming/npm/node_modules/@smithery/cli/**)",
+      "Bash(npm.cmd install:*)"
+    ]
+  }
+}

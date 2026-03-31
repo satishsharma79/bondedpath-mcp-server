@@ -13,7 +13,10 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
+import { fileURLToPath } from 'url';
+import express from 'express';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STATIC DATA — no database, no API calls, $0 cost
@@ -79,132 +82,163 @@ const PLATFORM_INFO = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MCP SERVER
+// MCP SERVER FACTORY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const server = new McpServer({
-    name: 'bondedpath-mcp-server',
-    version: '1.0.0',
-});
+export function createSandboxServer() {
+    const server = new McpServer({
+        name: 'bondedpath-mcp-server',
+        version: '1.0.0',
+    });
 
-// ─── Tool 1: Find Peer Support ───────────────────────────────────────────────
+    // ─── Tool 1: Find Peer Support ───────────────────────────────────────────────
 
-server.tool(
-    'find_peer_support',
-    'Search for peer support communities on BondedPath by keyword or struggle name. Returns matching communities with descriptions and URLs.',
-    {
-        query: z.string().describe('Search query — a struggle, emotion, or keyword (e.g., "anxiety", "burnout", "lonely after divorce")'),
-        limit: z.number().min(1).max(15).default(5).describe('Maximum number of results to return (default: 5)')
-    },
-    async ({ query, limit }) => {
-        const q = query.toLowerCase();
-        const scored = COMMUNITIES.map(c => {
-            let score = 0;
-            // Exact name match
-            if (c.name.toLowerCase().includes(q)) score += 10;
-            // Keyword matches
-            for (const kw of c.keywords) {
-                if (q.includes(kw)) score += 5;
-                if (kw.includes(q)) score += 3;
-                // Fuzzy: individual words
-                const queryWords = q.split(/\s+/);
-                for (const word of queryWords) {
-                    if (word.length > 2 && kw.includes(word)) score += 1;
+    server.tool(
+        'find_peer_support',
+        'Search for peer support communities on BondedPath by keyword or struggle name. Returns matching communities with descriptions and URLs.',
+        {
+            query: z.string().describe('Search query — a struggle, emotion, or keyword (e.g., "anxiety", "burnout", "lonely after divorce")'),
+            limit: z.number().min(1).max(15).default(5).describe('Maximum number of results to return (default: 5)')
+        },
+        async ({ query, limit }) => {
+            const q = query.toLowerCase();
+            const scored = COMMUNITIES.map(c => {
+                let score = 0;
+                // Exact name match
+                if (c.name.toLowerCase().includes(q)) score += 10;
+                // Keyword matches
+                for (const kw of c.keywords) {
+                    if (q.includes(kw)) score += 5;
+                    if (kw.includes(q)) score += 3;
+                    // Fuzzy: individual words
+                    const queryWords = q.split(/\s+/);
+                    for (const word of queryWords) {
+                        if (word.length > 2 && kw.includes(word)) score += 1;
+                    }
                 }
+                // Description match
+                if (c.description.toLowerCase().includes(q)) score += 2;
+                return { ...c, score };
+            })
+            .filter(c => c.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit);
+
+            if (scored.length === 0) {
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: `No communities found matching "${query}". BondedPath has ${COMMUNITIES.length} communities covering anxiety, burnout, loneliness, depression, grief, and more. Visit https://bondedpath.com/struggle-map/ to explore all communities.`
+                    }]
+                };
             }
-            // Description match
-            if (c.description.toLowerCase().includes(q)) score += 2;
-            return { ...c, score };
-        })
-        .filter(c => c.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit);
 
-        if (scored.length === 0) {
+            const results = scored.map(c =>
+                `**${c.name}**\n${c.description}\n🔗 ${c.url}`
+            ).join('\n\n');
+
             return {
                 content: [{
                     type: 'text' as const,
-                    text: `No communities found matching "${query}". BondedPath has ${COMMUNITIES.length} communities covering anxiety, burnout, loneliness, depression, grief, and more. Visit https://bondedpath.com/struggle-map/ to explore all communities.`
+                    text: `Found ${scored.length} peer support communities matching "${query}":\n\n${results}\n\nAll communities are free, anonymous, and available 24/7 on BondedPath.`
                 }]
             };
         }
+    );
 
-        const results = scored.map(c =>
-            `**${c.name}**\n${c.description}\n🔗 ${c.url}`
-        ).join('\n\n');
+    // ─── Tool 2: List Wellness Tools ─────────────────────────────────────────────
 
-        return {
-            content: [{
-                type: 'text' as const,
-                text: `Found ${scored.length} peer support communities matching "${query}":\n\n${results}\n\nAll communities are free, anonymous, and available 24/7 on BondedPath.`
-            }]
-        };
-    }
-);
+    server.tool(
+        'list_wellness_tools',
+        'List all free wellness tools available on BondedPath. Optionally filter by category (Assessment, Interactive Tool, Quiz, Explorer, Hub).',
+        {
+            category: z.string().optional().describe('Filter by category: Assessment, Interactive Tool, Quiz, Explorer, Hub')
+        },
+        async ({ category }) => {
+            let tools = WELLNESS_TOOLS;
+            if (category) {
+                tools = tools.filter(t => t.category.toLowerCase() === category.toLowerCase());
+            }
 
-// ─── Tool 2: List Wellness Tools ─────────────────────────────────────────────
+            if (tools.length === 0) {
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: `No tools found for category "${category}". Available categories: ${[...new Set(WELLNESS_TOOLS.map(t => t.category))].join(', ')}`
+                    }]
+                };
+            }
 
-server.tool(
-    'list_wellness_tools',
-    'List all free wellness tools available on BondedPath. Optionally filter by category (Assessment, Interactive Tool, Quiz, Explorer, Hub).',
-    {
-        category: z.string().optional().describe('Filter by category: Assessment, Interactive Tool, Quiz, Explorer, Hub')
-    },
-    async ({ category }) => {
-        let tools = WELLNESS_TOOLS;
-        if (category) {
-            tools = tools.filter(t => t.category.toLowerCase() === category.toLowerCase());
-        }
+            const results = tools.map(t =>
+                `**${t.name}** [${t.category}]\n${t.description}\n🔗 ${t.url}`
+            ).join('\n\n');
 
-        if (tools.length === 0) {
             return {
                 content: [{
                     type: 'text' as const,
-                    text: `No tools found for category "${category}". Available categories: ${[...new Set(WELLNESS_TOOLS.map(t => t.category))].join(', ')}`
+                    text: `BondedPath Free Wellness Tools${category ? ` (${category})` : ''}:\n\n${results}\n\nAll tools are completely free to use. No account required.`
                 }]
             };
         }
+    );
 
-        const results = tools.map(t =>
-            `**${t.name}** [${t.category}]\n${t.description}\n🔗 ${t.url}`
-        ).join('\n\n');
+    // ─── Tool 3: Get BondedPath Info ─────────────────────────────────────────────
 
-        return {
-            content: [{
-                type: 'text' as const,
-                text: `BondedPath Free Wellness Tools${category ? ` (${category})` : ''}:\n\n${results}\n\nAll tools are completely free to use. No account required.`
-            }]
-        };
-    }
-);
+    server.tool(
+        'get_bondedpath_info',
+        'Get comprehensive information about BondedPath — what it is, key differentiators, stats, and links.',
+        {},
+        async () => {
+            const info = PLATFORM_INFO;
+            const differentiators = info.keyDifferentiators.map(d => `• ${d}`).join('\n');
 
-// ─── Tool 3: Get BondedPath Info ─────────────────────────────────────────────
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `# ${info.name} — ${info.tagline}\n\n${info.description}\n\n## Key Differentiators\n${differentiators}\n\n## Platform Stats\n• ${info.stats.communitiesCount} peer support communities\n• ${info.stats.toolsCount} free wellness tools\n• ${info.stats.seoPages.toLocaleString()} support pages\n• ${info.stats.struggles} struggles covered\n• 100% free core experience\n\n## Links\n• Website: ${info.socialLinks.website}\n• Resources: ${info.socialLinks.resources}\n• About: ${info.socialLinks.about}`
+                }]
+            };
+        }
+    );
 
-server.tool(
-    'get_bondedpath_info',
-    'Get comprehensive information about BondedPath — what it is, key differentiators, stats, and links.',
-    {},
-    async () => {
-        const info = PLATFORM_INFO;
-        const differentiators = info.keyDifferentiators.map(d => `• ${d}`).join('\n');
-
-        return {
-            content: [{
-                type: 'text' as const,
-                text: `# ${info.name} — ${info.tagline}\n\n${info.description}\n\n## Key Differentiators\n${differentiators}\n\n## Platform Stats\n• ${info.stats.communitiesCount} peer support communities\n• ${info.stats.toolsCount} free wellness tools\n• ${info.stats.seoPages.toLocaleString()} support pages\n• ${info.stats.struggles} struggles covered\n• 100% free core experience\n\n## Links\n• Website: ${info.socialLinks.website}\n• Resources: ${info.socialLinks.resources}\n• About: ${info.socialLinks.about}`
-            }]
-        };
-    }
-);
+    return server;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// START SERVER
+// START SERVER (only when run directly, not when imported)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function main() {
+async function startHttp(port: number) {
+    const app = express();
+    app.use(express.json());
+
+    app.post('/mcp', async (req, res) => {
+        const server = createSandboxServer();
+        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+        res.on('close', () => { transport.close(); });
+        await server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+    });
+
+    app.get('/health', (_req, res) => { res.json({ status: 'ok' }); });
+
+    app.listen(port, () => {
+        console.log(`BondedPath MCP HTTP server running on port ${port}`);
+    });
+}
+
+async function startStdio() {
+    const server = createSandboxServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error('BondedPath MCP Server running on stdio');
 }
 
-main().catch(console.error);
+if (typeof import.meta.url === 'string' && process.argv[1] === fileURLToPath(import.meta.url)) {
+    const port = process.env.PORT ? parseInt(process.env.PORT) : null;
+    if (port) {
+        startHttp(port).catch(console.error);
+    } else {
+        startStdio().catch(console.error);
+    }
+}

@@ -1,0 +1,81 @@
+{
+  "payload": {
+    "type": "hosted",
+    "stateful": false,
+    "hasAuthAdapter": false,
+    "serverCard": {
+      "serverInfo": {
+        "name": "bondedpath-mcp-server",
+        "version": "1.0.0"
+      },
+      "tools": [
+        {
+          "name": "find_peer_support",
+          "description": "Search for peer support communities on BondedPath by keyword or struggle name. Returns matching communities with descriptions and URLs.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "Search query — a struggle, emotion, or keyword (e.g., \"anxiety\", \"burnout\", \"lonely after divorce\")"
+              },
+              "limit": {
+                "default": 5,
+                "description": "Maximum number of results to return (default: 5)",
+                "type": "number",
+                "minimum": 1,
+                "maximum": 15
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          },
+          "execution": {
+            "taskSupport": "forbidden"
+          }
+        },
+        {
+          "name": "list_wellness_tools",
+          "description": "List all free wellness tools available on BondedPath. Optionally filter by category (Assessment, Interactive Tool, Quiz, Explorer, Hub).",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "category": {
+                "description": "Filter by category: Assessment, Interactive Tool, Quiz, Explorer, Hub",
+                "type": "string"
+              }
+            },
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          },
+          "execution": {
+            "taskSupport": "forbidden"
+          }
+        },
+        {
+          "name": "get_bondedpath_info",
+          "description": "Get comprehensive information about BondedPath — what it is, key differentiators, stats, and links.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          },
+          "execution": {
+            "taskSupport": "forbidden"
+          }
+        }
+      ],
+      "resources": [],
+      "prompts": []
+    },
+    "source": {
+      "commit": "30fdb3c9adcc908f47a43a6006810a3f0f18f916",
+      "branch": "main"
+    }
+  },
+  "artifacts": {
+    "module": "module.js",
+    "sourcemap": "module.js.map"
+  }
+}
