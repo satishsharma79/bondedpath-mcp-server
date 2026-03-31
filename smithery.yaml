@@ -5,7 +5,6 @@ startCommand:
     properties: {}
   commandFunction: |-
     (config) => ({
-      command: "npx",
-      args: ["-y", "bondedpath-mcp-server"],
-      env: {}
+      command: 'node',
+      args: ['./dist/index.js']
     })
