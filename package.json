@@ -1,0 +1,24 @@
+{
+  "name": "bondedpath-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for BondedPath — peer support and wellness tool discovery",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "bondedpath-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx index.ts"
+  },
+  "keywords": ["mcp", "mental-health", "peer-support", "wellness", "bondedpath"],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "tsx": "^4.19.2"
+  }
+}
