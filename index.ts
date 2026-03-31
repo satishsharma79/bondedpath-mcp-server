@@ -222,6 +222,43 @@ async function startHttp(port: number) {
 
     app.get('/health', (_req, res) => { res.json({ status: 'ok' }); });
 
+    app.get('/.well-known/mcp/server-card.json', (_req, res) => {
+        res.json({
+            name: 'bondedpath-mcp-server',
+            version: '1.0.0',
+            description: 'MCP Server for BondedPath — peer support and wellness tool discovery',
+            tools: [
+                {
+                    name: 'find_peer_support',
+                    description: 'Search for peer support communities on BondedPath by keyword or struggle name. Returns matching communities with descriptions and URLs.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            query: { type: 'string', description: 'Search query — a struggle, emotion, or keyword (e.g., "anxiety", "burnout", "lonely after divorce")' },
+                            limit: { type: 'number', minimum: 1, maximum: 15, default: 5, description: 'Maximum number of results to return (default: 5)' }
+                        },
+                        required: ['query']
+                    }
+                },
+                {
+                    name: 'list_wellness_tools',
+                    description: 'List all free wellness tools available on BondedPath. Optionally filter by category.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            category: { type: 'string', description: 'Filter by category: Assessment, Interactive Tool, Quiz, Explorer, Hub' }
+                        }
+                    }
+                },
+                {
+                    name: 'get_bondedpath_info',
+                    description: 'Get comprehensive information about BondedPath — what it is, key differentiators, stats, and links.',
+                    inputSchema: { type: 'object', properties: {} }
+                }
+            ]
+        });
+    });
+
     app.listen(port, () => {
         console.log(`BondedPath MCP HTTP server running on port ${port}`);
     });
