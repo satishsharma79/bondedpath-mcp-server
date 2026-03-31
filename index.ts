@@ -212,13 +212,16 @@ async function startHttp(port: number) {
     const app = express();
     app.use(express.json());
 
-    app.post('/mcp', async (req, res) => {
+    app.all('/mcp', async (req, res) => {
         try {
             const server = createSandboxServer();
             const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-            res.on('close', () => { transport.close(); });
             await server.connect(transport);
             await transport.handleRequest(req, res, req.body);
+            res.on('close', () => {
+                transport.close();
+                server.close();
+            });
         } catch (err) {
             console.error('MCP handler error:', err);
             if (!res.headersSent) {
